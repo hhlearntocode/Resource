@@ -1,5 +1,5 @@
 import easyocr
-from side_function import capture_image, save_image, text_to_speech, MyFaiss, listen_and_recognize
+from side_function import capture_image, save_image, text_to_speech, MyFaiss, listen_and_recognize, get_cap_json, get_obj_json, generate_image_description
 import google.generativeai as genai
 from typing import List
 import re
@@ -31,6 +31,7 @@ def classify_command(command: str, model):
     command_types: List[str] = [
         "trích xuất văn bản",
         "tìm vật",
+        "miêu tả cảnh vật"
     ]
     
     if command == "get_info":
@@ -110,7 +111,9 @@ class ImageProcessor(threading.Thread):
             if task_type == "feat1":
                 result = self.process_feat1()
             elif task_type == "feat2":
-                result = self.process_feat2()
+                result = self.process_feat2(*args)
+            elif task_type == "feat3":
+                result = self.process_feat3()
             self.result_queue.put((task_type, result))
             self.task_queue.task_done()
 
@@ -126,6 +129,14 @@ class ImageProcessor(threading.Thread):
         image_path = save_image(frame)
         similarity = cosine_faiss.image_warning(object_name, image_path)
         return f"{object_name} đang ở trước mặt bạn" if similarity > 0.2 else "không tìm thấy"
+
+    def process_feat3(self):
+        frame = capture_image()
+        image_path = save_image(frame)
+        get_obj_json(image_path)
+        get_cap_json(image_path)
+
+        return generate_image_description()
 
 
 def main():
@@ -143,8 +154,8 @@ def main():
     text_to_speech("Xin chào, tôi có thể giúp gì cho bạn?", "vi")
 
     while True:
-        # command, lang = listen_and_recognize(recognizer, microphone, timeout=10)
-        command = input("Nhập: ")
+        command, lang = listen_and_recognize(recognizer, microphone, timeout=10)
+        #command = input("Nhập: ")
         print(f"Đã nhận diện: {command}")
 
         if not command:
@@ -164,28 +175,19 @@ def main():
             task_queue.put(("feat1", ()))
 
         elif task == "feat2":
-            task_queue.put(("feat2", ()))
-            print("feat 2 hoàn tất!")   
-
-        elif task == "feat3":
             text_to_speech("Bạn cần tìm vật gì?", "vi")
             object_name, _ = listen_and_recognize(recognizer, microphone, timeout=10)
             # object_name = input("object name: ")
             if object_name: 
-                task_queue.put(("feat3", (object_name,)))
+                task_queue.put(("feat2", (object_name,)))
             else:
                 text_to_speech("Tôi không nghe rõ tên vật. Vui lòng thử lại.", "vi")
+            print("feat 2 hoàn tất!")   
+
+        elif task == "feat3":
+            text_to_speech("Đã chụp hình, đang xử lý.", "vi")
+            task_queue.put(("feat3", ()))
             print("feat 3 hoàn tất!")   
-
-        elif task == "feat4":
-            text_to_speech("đang kiểm tra nguy hiểm xung quanh.", "vi")
-            task_queue.put(("feat4", ()))
-            print("feat 4 hoàn tất!")   
-
-        elif task == 'feat5':
-            text_to_speech("đang kiểm tra người quen phía trước", "vi")
-            task_queue.put(("feat5", ()))
-            print("feat 5 hoàn tất!")
 
         else:
             text_to_speech("Tôi không hiểu lệnh đó. Vui lòng thử lại.", "vi")

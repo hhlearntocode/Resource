@@ -18,7 +18,7 @@ import torch
 import json
 from PIL import Image
 
-from hangso import capture_index
+from hangso import capture_index, Image_Captioning_URL, ObjectDetect_URL, headers
 
 # CAPTURE IMAGE 
 def capture_image():
@@ -130,6 +130,29 @@ def listen_and_recognize(recognizer, microphone, timeout=10):
     except Exception as e:
         return "", ""
 
+def get_object(filename):
+    with open(filename, "rb") as f:
+        data = f.read()
+    response = requests.post(ObjectDetect_URL, headers=headers, data=data)
+    return response.json()
+
+def get_obj_json(filename):
+    os.makedirs("json", exist_ok=True)
+    object = get_object(filename)
+    with open("json/object.json", "w") as fr:
+        js.dump(object, fr, indent=4)
+    
+def get_caption(filename):
+    with open(filename, "rb") as f:
+        data = f.read()
+    response = requests.post(Image_Captioning_URL, headers=headers, data=data)
+    return response.json()
+def get_cap_json(filename):
+    os.makedirs("json", exist_ok=True)
+    caption = get_caption(filename)
+    with open("json/caption.json", "w") as fr:
+        js.dump(caption, fr, indent=4)
+
 
 class Translation:
     def __init__(self, from_lang='vi', to_lang='en', mode='google'):
@@ -151,14 +174,12 @@ class Translation:
         return self.translator.translate(text) if self.__mode in 'translate' \
                 else self.translator.translate(text, dest=self.__to_lang).text
 
+
 class MyFaiss:
-  def __init__(self) #root_database: str, bin_file: str, json_path: str):
+  def __init__(self): #root_database: str, bin_file: str, json_path: str):
     self.__device = "cuda" if torch.cuda.is_available() else "cpu"
     self.model, self.preprocess = clip.load("ViT-B/32", device=self.__device)
     self.translater = Translation()
-  def load_json_file(self, json_path: str):
-      with open(json_path, 'r') as f:
-        js = json.loads(f.read())
 
   def image_warning(self, text, image_path):
     if detect(text) == 'vi':
